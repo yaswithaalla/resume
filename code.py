@@ -1,148 +1,120 @@
 import streamlit as st
-from jinja2 import Template
-import pdfkit
-import tempfile
+from fpdf import FPDF
 import os
+import tempfile
+from datetime import date
 
-st.set_page_config(page_title="Resume Generator", layout="centered")
-st.title("📄 BTech Fresher Resume Generator")
+st.set_page_config(page_title="Resume Builder", layout="centered")
 
-if "education" not in st.session_state:
-    st.session_state.education = []
-if "projects" not in st.session_state:
-    st.session_state.projects = []
+def sanitize_text(text):
+    return text.replace("–", "-").replace("’", "'").replace("“", '"').replace("”", '"') if text else ""
 
-name = st.text_input("Full Name")
-email = st.text_input("Email")
-phone = st.text_input("Phone")
-linkedin = st.text_input("LinkedIn URL")
-github = st.text_input("GitHub URL")
-objective = st.text_area("Career Objective", height=80)
+class PDF(FPDF):
+    def header(self):
+        self.set_font("Arial", 'B', 16)
+        self.cell(0, 10, self.title, ln=True, align="C")
 
-st.subheader("🎓 Education")
-with st.form("education_form", clear_on_submit=True):
-    degree = st.text_input("Degree")
-    college = st.text_input("College")
-    year = st.text_input("Year")
-    cgpa = st.text_input("CGPA")
-    if st.form_submit_button("Add Education"):
-        st.session_state.education.append({
-            "degree": degree, "college": college, "year": year, "cgpa": cgpa
-        })
+    def add_section_title(self, title):
+        self.set_font("Arial", "B", 12)
+        self.set_text_color(30, 30, 30)
+        self.cell(0, 10, sanitize_text(title), ln=True)
 
-for edu in st.session_state.education:
-    st.write(f"• {edu['degree']}, {edu['college']} ({edu['year']}) — CGPA: {edu['cgpa']}")
+    def add_text(self, text):
+        self.set_font("Arial", "", 11)
+        self.set_text_color(50, 50, 50)
+        self.multi_cell(0, 8, sanitize_text(text))
+        self.ln(2)
 
-st.subheader("🚀 Projects")
-with st.form("project_form", clear_on_submit=True):
-    proj_title = st.text_input("Project Title")
-    proj_desc = st.text_area("Project Description")
-    proj_tech = st.text_input("Tech Stack")
-    if st.form_submit_button("Add Project"):
-        st.session_state.projects.append({
-            "title": proj_title, "desc": proj_desc, "tech": proj_tech
-        })
+# Streamlit UI
+st.title("📄 Resume Builder")
 
-for proj in st.session_state.projects:
-    st.write(f"• *{proj['title']}* | {proj['tech']}")
-    st.write(proj['desc'])
+with st.form("resume_form"):
+    st.subheader("🔹 Personal Info")
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    phone = st.text_input("Phone Number")
+    linkedin = st.text_input("LinkedIn URL")
+    github = st.text_input("GitHub URL")
 
-skills = st.text_area("Technical Skills (comma-separated)")
-achievements = st.text_area("Achievements (one per line)")
-certifications = st.text_area("Certifications (one per line)")
-internships = st.text_area("Internships (Company - Role - Duration - Description)")
-workshops = st.text_area("Workshops/Seminars Attended")
-extras = st.text_area("Extra-curricular / Leadership Roles")
-languages_known = st.text_input("Languages Known (comma-separated)")
+    st.subheader("🔹 Summary & Education")
+    summary = st.text_area("Professional Summary")
+    degree = st.text_input("Degree and Branch")
+    college = st.text_input("College Name")
+    edu_duration = st.text_input("Duration (e.g. 2021 - 2025)")
+    cgpa = st.text_input("CGPA / Percentage")
+    courses = st.text_input("Relevant Coursework")
 
-html_template = """
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-body { font-family: Arial, sans-serif; font-size: 14px; margin: 20px; color: #000; }
-h1 { font-size: 28px; margin-bottom: 8px; color: #2c3e50; }
-h2 { font-size: 20px; margin-top: 22px; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #2c3e50; }
-p, li { margin: 4px 0; }
-ul { padding-left: 20px; margin: 0; }
-</style>
-</head>
-<body>
-<h1>{{ name }}</h1>
-<p><strong>Email:</strong> {{ email }} | <strong>Phone:</strong> {{ phone }}</p>
-<p><strong>LinkedIn:</strong> {{ linkedin }} | <strong>GitHub:</strong> {{ github }}</p>
+    st.subheader("🔹 Skills & Projects")
+    skills = st.text_area("Skills (comma separated)")
+    project_title = st.text_input("Project Title")
+    project_tech = st.text_input("Technologies Used")
+    project_desc = st.text_area("Project Description")
 
-<h2>Career Objective</h2>
-<p>{{ objective }}</p>
+    st.subheader("🔹 Experience & Certifications")
+    exp_title = st.text_input("Experience Title")
+    exp_company = st.text_input("Company Name")
+    exp_desc = st.text_area("Experience Description")
+    cert1 = st.text_input("Certification 1")
+    cert2 = st.text_input("Certification 2")
 
-<h2>Education</h2>
-<ul>
-{% for edu in education %}
-<li><strong>{{ edu.degree }}</strong>, {{ edu.college }} ({{ edu.year }}) — CGPA: {{ edu.cgpa }}</li>
-{% endfor %}
-</ul>
+    st.subheader("🔹 Extras")
+    achievements = st.text_area("Achievements / Extracurriculars")
+    languages = st.text_input("Languages Known")
+    place = st.text_input("Place")
+    today = date.today().strftime("%B %d, %Y")
 
-<h2>Projects</h2>
-<ul>
-{% for proj in projects %}
-<li><strong>{{ proj.title }}</strong> | <em>{{ proj.tech }}</em><br>{{ proj.desc }}</li>
-{% endfor %}
-</ul>
+    submitted = st.form_submit_button("📄 Generate Resume")
 
-<h2>Technical Skills</h2>
-<p>{{ skills }}</p>
+if submitted:
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.title = sanitize_text(name)
+    pdf.add_page()
 
-<h2>Internships</h2>
-<p>{{ internships.replace('\\n', '<br>') }}</p>
+    # Header Info
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, sanitize_text(name), ln=True)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 8, f"{sanitize_text(email)} | {sanitize_text(phone)}", ln=True)
+    pdf.cell(0, 8, f"LinkedIn: {sanitize_text(linkedin)} | GitHub: {sanitize_text(github)}", ln=True)
+    pdf.ln(5)
 
-<h2>Certifications</h2>
-<p>{{ certifications.replace('\\n', '<br>') }}</p>
+    # Sections
+    pdf.add_section_title("Professional Summary")
+    pdf.add_text(summary)
 
-<h2>Achievements</h2>
-<p>{{ achievements.replace('\\n', '<br>') }}</p>
+    pdf.add_section_title("Education")
+    pdf.add_text(f"{degree}, {college}\n{edu_duration} | {cgpa}\nCourses: {courses}")
 
-<h2>Workshops / Seminars</h2>
-<p>{{ workshops.replace('\\n', '<br>') }}</p>
+    pdf.add_section_title("Technical Skills")
+    pdf.add_text(skills)
 
-<h2>Extra-curricular / Leadership</h2>
-<p>{{ extras.replace('\\n', '<br>') }}</p>
+    pdf.add_section_title("Project")
+    pdf.add_text(f"{project_title} - {project_tech}\n{project_desc}")
 
-<h2>Languages Known</h2>
-<p>{{ languages_known }}</p>
-</body>
-</html>
-"""
+    pdf.add_section_title("Experience")
+    pdf.add_text(f"{exp_title} at {exp_company}\n{exp_desc}")
 
-def generate_pdf(html_content):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
-        config = pdfkit.configuration(wkhtmltopdf="/usr/bin/wkhtmltopdf")  # Update path if needed
-        pdfkit.from_string(html_content, tmpfile.name, configuration=config)
-        return tmpfile.name
+    pdf.add_section_title("Certifications")
+    cert_text = "\n".join(filter(None, [cert1, cert2]))
+    pdf.add_text(cert_text)
 
-if st.button("📄 Generate Resume PDF"):
-    html = Template(html_template).render(
-        name=name,
-        email=email,
-        phone=phone,
-        linkedin=linkedin,
-        github=github,
-        objective=objective,
-        education=st.session_state.education,
-        projects=st.session_state.projects,
-        skills=skills,
-        internships=internships,
-        certifications=certifications,
-        achievements=achievements,
-        workshops=workshops,
-        extras=extras,
-        languages_known=languages_known
-    )
+    pdf.add_section_title("Achievements & Extracurriculars")
+    pdf.add_text(achievements)
 
-    try:
-        pdf_path = generate_pdf(html)
-        with open(pdf_path, "rb") as f:
-            st.download_button("📥 Download Resume", f, file_name="Resume.pdf", mime="application/pdf")
+    pdf.add_section_title("Languages")
+    pdf.add_text(languages)
+
+    # Declaration
+    pdf.ln(10)
+    pdf.set_font("Arial", "I", 10)
+    pdf.multi_cell(0, 8, sanitize_text(f"I hereby declare that the above information is true.\nDate: {today}\nPlace: {place}"))
+
+    # Save PDF to temporary file and provide download
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        tmp.seek(0)
         st.success("✅ Resume generated successfully!")
-    except Exception as e:
-        st.error(f"❌ Failed to generate PDF: {e}")
+        st.download_button("📥 Download Resume PDF", tmp, file_name="My_Resume.pdf", mime="application/pdf")
+
 
